@@ -9,12 +9,19 @@ def adjust_learning_rate(args, optimizer, epoch, batch_idx, data_nums, type="cos
         epoch += float(batch_idx + 1) / data_nums
         lr_adj = 1. * (epoch / args.warmup_epochs)
     elif type == "linear":
+        multiplier=5e-1
         if epoch < 30 + args.warmup_epochs:
             lr_adj = 1.
         elif epoch < 60 + args.warmup_epochs:
-            lr_adj = 1e-1
+            lr_adj = multiplier/2
         elif epoch < 90 + args.warmup_epochs:
-            lr_adj = 1e-2
+            lr_adj = multiplier/4
+        elif epoch < 120 + args.warmup_epochs:
+            lr_adj = multiplier/16
+        elif epoch < 150 + args.warmup_epochs:
+            lr_adj = multiplier/32
+        elif epoch < 180 + args.warmup_epochs:
+            lr_adj = multiplier/64
         else:
             lr_adj = 1e-3
     elif type == "cosine":
@@ -62,7 +69,7 @@ def accuracy(output, target):
 
 
 def save_model(model, optimizer, epoch, args):
-    os.system('mkdir -p {}'.format(args.work_dirs))
+    os.system('mkdir {}'.format(args.work_dirs))
     if optimizer is not None:
         torch.save({
             'net': model.state_dict(),
@@ -79,7 +86,7 @@ def save_model(model, optimizer, epoch, args):
 def dist_save_model(model, optimizer, epoch, ngpus_per_node, args):
     if not args.multiprocessing_distributed or (args.multiprocessing_distributed
                                                 and args.rank % ngpus_per_node == 0):
-        os.system('mkdir -p {}'.format(args.work_dirs))
+        os.system('mkdir {}'.format(args.work_dirs))
         if optimizer is not None:
             torch.save({
                 'net': model.state_dict(),
