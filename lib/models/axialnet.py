@@ -166,7 +166,7 @@ class AxialAttentionNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, int(128 * s), layers[0], kernel_size=56)
-        self.layer2 = self._make_layer(block, int(256 * s), layers[1], stride=2, kernel_size=56,
+        self.layer2 = self._make_layer(block, int(256 * s), layers[1], stride=2, kernel_size=56, # change kerenel size to depend on input size? (should be 1/2 of input, then reduced by 1/2 each layer after that)
                                        dilate=replace_stride_with_dilation[0])
         self.layer3 = self._make_layer(block, int(512 * s), layers[2], stride=2, kernel_size=28,
                                        dilate=replace_stride_with_dilation[1])
