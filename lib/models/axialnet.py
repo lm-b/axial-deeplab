@@ -59,11 +59,15 @@ class AxialAttention(nn.Module):
         # Transformations
         qkv = self.bn_qkv(self.qkv_transform(x)) #nn.BatchNorm(out_planes*2)
         q, k, v = torch.split(qkv.reshape(N * W, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)#splits the matrix at the row specified in the second input. 
-
+            #input is shape: [batch size*img width, groups, group_planes*2 img height]; # channels in each output is [groupplanes/2, groupplanes/2, groupplanes]; split along channel dimension
+                # self.group planes = (128, 256, 512, or 1024 (dep on layer)*s*(64/64)/8
+                # output is [batch sizem, img width, new channels, img height]
+                # q= [batch*imgwidth,groups, group_planes/2,imgheight], k=[batch*imgwidth,groups, group_planes/2,imgheight], v=[batch*imgwidth,groups, group_planes,imgheight]
         # Calculate position embedding
-        all_embeddings = torch.index_select(self.relative, 1, self.flatten_index).view(self.group_planes * 2, self.kernel_size, self.kernel_size)
-        q_embedding, k_embedding, v_embedding = torch.split(all_embeddings, [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=0)
-        qr = torch.einsum('bgci,cij->bgij', q, q_embedding) # multiplied across c  ## queries
+        all_embeddings = torch.index_select(self.relative, 1, self.flatten_index).view(self.group_planes * 2, self.kernel_size, self.kernel_size) # view resizes to size [groups_planes*2, kernel, kernel]
+        q_embedding, k_embedding, v_embedding = torch.split(all_embeddings, [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=0) # split at the very first dimension 
+            # qembed=[groupl_planes2, kernel, kernel], k-emebd=[group_planes/2, kernel, kernel],, v-embed=[group_planes, kernel, kernel],
+        qr = torch.einsum('bgci,cij->bgij', q, q_embedding) # multiplied across c  ## queries  ###kernel size needs to match image height or this doesnt work
         kr = torch.einsum('bgci,cij->bgij', k, k_embedding).transpose(2, 3) # multiplied across c  ## keys
         qk = torch.einsum('bgci, bgcj->bgij', q, k)  # multiplied across c  ## queries*keys
         stacked_similarity = torch.cat([qk, qr, kr], dim=1)
