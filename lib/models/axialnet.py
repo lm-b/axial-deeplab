@@ -29,8 +29,8 @@ class AxialAttention(nn.Module):
 
         # Multi-head self attention
         self.qkv_transform = qkv_transform(in_planes, out_planes * 2, kernel_size=1, stride=1,
-                                           padding=0, bias=False)
-        self.bn_qkv = nn.BatchNorm1d(out_planes * 2)
+                                           padding=0, bias=False) # qkvtransform is just a nn.conv1d from utils.py
+        self.bn_qkv = nn.BatchNorm1d(out_planes * 2) 
         self.bn_similarity = nn.BatchNorm2d(groups * 3)
         #self.bn_qk = nn.BatchNorm2d(groups)
         #self.bn_qr = nn.BatchNorm2d(groups)
@@ -38,7 +38,7 @@ class AxialAttention(nn.Module):
         self.bn_output = nn.BatchNorm1d(out_planes * 2)
 
         # Position embedding
-        self.relative = nn.Parameter(torch.randn(self.group_planes * 2, kernel_size * 2 - 1), requires_grad=True)
+        self.relative = nn.Parameter(torch.randn(self.group_planes * 2, kernel_size * 2 - 1), requires_grad=True) # randomly initialize position encodings
         query_index = torch.arange(kernel_size).unsqueeze(0)
         key_index = torch.arange(kernel_size).unsqueeze(1)
         relative_index = key_index - query_index + kernel_size - 1
@@ -57,24 +57,24 @@ class AxialAttention(nn.Module):
         x = x.contiguous().view(N * W, C, H)
 
         # Transformations
-        qkv = self.bn_qkv(self.qkv_transform(x))
-        q, k, v = torch.split(qkv.reshape(N * W, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)
+        qkv = self.bn_qkv(self.qkv_transform(x)) #nn.BatchNorm(out_planes*2)
+        q, k, v = torch.split(qkv.reshape(N * W, self.groups, self.group_planes * 2, H), [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=2)#splits the matrix at the row specified in the second input. 
 
         # Calculate position embedding
         all_embeddings = torch.index_select(self.relative, 1, self.flatten_index).view(self.group_planes * 2, self.kernel_size, self.kernel_size)
         q_embedding, k_embedding, v_embedding = torch.split(all_embeddings, [self.group_planes // 2, self.group_planes // 2, self.group_planes], dim=0)
-        qr = torch.einsum('bgci,cij->bgij', q, q_embedding)
-        kr = torch.einsum('bgci,cij->bgij', k, k_embedding).transpose(2, 3)
-        qk = torch.einsum('bgci, bgcj->bgij', q, k)
+        qr = torch.einsum('bgci,cij->bgij', q, q_embedding) # multiplied across c  ## queries
+        kr = torch.einsum('bgci,cij->bgij', k, k_embedding).transpose(2, 3) # multiplied across c  ## keys
+        qk = torch.einsum('bgci, bgcj->bgij', q, k)  # multiplied across c  ## queries*keys
         stacked_similarity = torch.cat([qk, qr, kr], dim=1)
-        stacked_similarity = self.bn_similarity(stacked_similarity).view(N * W, 3, self.groups, H, H).sum(dim=1)
+        stacked_similarity = self.bn_similarity(stacked_similarity).view(N * W, 3, self.groups, H, H).sum(dim=1) #summed along 3, gives (N*W, groups, H, H) output
         #stacked_similarity = self.bn_qr(qr) + self.bn_kr(kr) + self.bn_qk(qk)
         # (N, groups, H, H, W)
         similarity = F.softmax(stacked_similarity, dim=3)
-        sv = torch.einsum('bgij,bgcj->bgci', similarity, v)
-        sve = torch.einsum('bgij,cij->bgci', similarity, v_embedding)
-        stacked_output = torch.cat([sv, sve], dim=-1).view(N * W, self.out_planes * 2, H)
-        output = self.bn_output(stacked_output).view(N, W, self.out_planes, 2, H).sum(dim=-2)
+        sv = torch.einsum('bgij,bgcj->bgci', similarity, v) #attn*v 
+        sve = torch.einsum('bgij,cij->bgci', similarity, v_embedding) #attn*v_embedding (position)
+        stacked_output = torch.cat([sv, sve], dim=-1).view(N * W, self.out_planes * 2, H) #attn*V+ attn*v_E
+        output = self.bn_output(stacked_output).view(N, W, self.out_planes, 2, H).sum(dim=-2) #yo in paper attn*V+ attn*v_E sum, output dim (N,W,out,H)
 
         if self.width:
             output = output.permute(0, 2, 1, 3)
