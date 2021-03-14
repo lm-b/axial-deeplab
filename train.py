@@ -125,6 +125,7 @@ def val(model, val_loader, criterion, epoch, args, log_writer=False):
 def train(model, train_loader, optimizer, criterion, epoch, log_writer, args):
     train_loss = lib.Metric('train_loss')
     train_accuracy = lib.Metric('train_accuracy')
+    learn_rate=lib.Metric('learn_rate')
     model.train()
     N = len(train_loader)
     start_time = time.time()
@@ -140,6 +141,7 @@ def train(model, train_loader, optimizer, criterion, epoch, log_writer, args):
 
         train_loss.update(loss)
         train_accuracy.update(accuracy(output, target))
+        learn_rate.update(lr_cur)
         if (batch_idx + 1) % 20 == 0:
             memory = torch.cuda.max_memory_allocated() / 1024.0 / 1024.0
             used_time = time.time() - start_time
@@ -154,6 +156,7 @@ def train(model, train_loader, optimizer, criterion, epoch, log_writer, args):
     if log_writer:
         log_writer.add_scalar('train/loss', train_loss.avg, epoch)
         log_writer.add_scalar('train/accuracy', train_accuracy.avg, epoch)
+        log_writer.add_Scalar('train/learning rate', learn_rage.avg, epoch)
 
 
 def test_net(args):
