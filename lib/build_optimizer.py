@@ -6,6 +6,9 @@ def build_optimizer(args, model):
         optimizer = optim.SGD(model.parameters(), lr=args.lr,
                               momentum=args.momentum, weight_decay=args.weight_decay,
                               nesterov=args.nesterov)
+    elif args.optim=='adam':
+        optimizer=optim.Adam(model.parameters(), lr=args.lr) 
+        
     else:
         raise AssertionError
     return optimizer
